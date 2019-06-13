@@ -9,31 +9,33 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 
 public class Main {
     public static void main(String... args) {
-        RoombaJSSC roomba = new RoombaJSSCSerial();
+        RoombaJSSC r = new RoombaJSSCSerial();
 
         //Start a server for Driver Station to connect to
         NetworkTableInstance.getDefault().startServer();
         NetworkTable table = NetworkTableInstance.getDefault().getTable("Roomba");
 
-        NetworkTableEntry leftSpeed = table.getEntry("leftSpeed"),
-                rightSpeed = table.getEntry("rightSpeed");
+        NetworkTableEntry leftMotor = table.getEntry("leftMotor"),
+                rightMotor = table.getEntry("rightMotor"),
+                leftRate = table.getEntry("leftRate"),
+                rightRate = table.getEntry("rightRate");
 
-        leftSpeed.setDouble(0.0);
-        rightSpeed.setDouble(0.0);
+        leftMotor.setDouble(0.0);
+        rightMotor.setDouble(0.0);
 
         // Connect to roomba
-        while (!roomba.connect("/dev/ttyUSB0")) { // Use portList() to get available ports.
-            String[] ports = roomba.portList(); // Get available serial port(s) (not mandatory)
+        while (!r.connect("/dev/ttyUSB0")) { // Use portList() to get available ports.
+            String[] ports = r.portList(); // Get available serial port(s) (not mandatory)
             System.out.println("Number of ports: " + ports.length);
             for (String s : ports) System.out.println(s);
         }
 
         // Make roomba ready for communication & control (safe mode)
-        roomba.startup();
-        roomba.sleep(500);
-        roomba.digitLedsAscii('G','N','U','C');
+        r.startup();
+        r.sleep(500);
+        r.digitLedsAscii('G','N','U','C');
 
-        roomba.song(0, new RoombaSongNote[]{
+        r.song(0, new RoombaSongNote[]{
                 new RoombaSongNote(RoombaNote.E2, RoombaNoteDuration.EightNote),
                 new RoombaSongNote(RoombaNote.D2Sharp, RoombaNoteDuration.EightNote),
                 new RoombaSongNote(RoombaNote.E2, RoombaNoteDuration.EightNote),
@@ -51,14 +53,29 @@ public class Main {
                 new RoombaSongNote(RoombaNote.Pause, RoombaNoteDuration.EightNote),
                 new RoombaSongNote(RoombaNote.E1, RoombaNoteDuration.EightNote)}, 125);
 
-        roomba.play(0);
+        r.play(0);
+
+        Derivative leftSpeed = new Derivative(r.encoderCountsLeft()),
+                rightSpeed = new Derivative(r.encoderCountsRight());
 
 // Read sensors (until key is pressed)
-        while (!roomba.buttonClockPressed()) {
-            roomba.sleep(100);
-            roomba.updateSensors();
-            roomba.drivePWM((int)(rightSpeed.getDouble(0.0)*100), (int)(leftSpeed.getDouble(0.0)*100));
-            System.out.println("leftSpeed: " + (int)(leftSpeed.getDouble(0.0)*100) + " rightSpeed: " + (int)(rightSpeed.getDouble(0.0)*100));
+        while (!r.buttonClockPressed()) {
+            r.sleep(50);
+            r.updateSensors();
+            r.drivePWM(convert(rightMotor.getDouble(0.0)), convert(leftMotor.getDouble(0.0)));
+            leftRate.setDouble(leftSpeed.calculate(r.encoderCountsLeft()));
+            rightRate.setDouble(rightSpeed.calculate(r.encoderCountsRight()));
+
+            /*
+            r.motors(
+                    motors.getBooleanArray(new boolean[5])[0],
+                    motors.getBooleanArray(new boolean[5])[1],
+                    motors.getBooleanArray(new boolean[5])[2],
+                    motors.getBooleanArray(new boolean[5])[3],
+                    motors.getBooleanArray(new boolean[5])[4]
+            );
+            */
+
             /*
             if(roomba.bumpLeft()) System.out.println("Bumped left");
             if(roomba.bumpRight()) System.out.println("Bumped right");
@@ -72,10 +89,32 @@ public class Main {
         }
 
 // Return to normal (human control) mode
-        roomba.stop();
+        r.stop();
 
 // Close serial connection
-        roomba.disconnect();
+        r.disconnect();
 
+    }
+
+    private static int convert(double value) {
+        return Math.max(-100, Math.min((int)(value*100), 100));
+    }
+}
+
+class Derivative{
+    private double prevValue;
+
+    Derivative(double startingValue){
+        prevValue = startingValue;
+    }
+
+    double calculate(double newValue, double dt){
+        double pv = prevValue;
+        prevValue = newValue;
+        return ((newValue - pv)/dt);
+    }
+
+    double calculate(double newValue){
+        return calculate(newValue, 0.05);
     }
 }
