@@ -1,3 +1,9 @@
+import com.diozero.api.DigitalOutputDevice;
+import com.diozero.api.GpioPullUpDown;
+import com.diozero.devices.Button;
+import com.diozero.devices.HCSR04;
+import com.diozero.devices.LED;
+import com.diozero.util.SleepUtil;
 import com.maschel.roomba.RoombaJSSC;
 import com.maschel.roomba.RoombaJSSCSerial;
 import com.maschel.roomba.song.RoombaNote;
@@ -9,6 +15,21 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 
 public class Main {
     public static void main(String... args) {
+        /*
+        System.out.println("LED running");
+        DigitalOutputDevice a = new DigitalOutputDevice(4);
+        for (; ; ) {
+            a.toggle();
+            SleepUtil.sleepSeconds(0.2);
+        }
+
+         */
+
+        tankDrive();
+    }
+
+
+    private static void tankDrive() {
         RoombaJSSC r = new RoombaJSSCSerial();
 
         //Start a server for Driver Station to connect to
@@ -18,7 +39,8 @@ public class Main {
         NetworkTableEntry leftMotor = table.getEntry("leftMotor"),
                 rightMotor = table.getEntry("rightMotor"),
                 leftRate = table.getEntry("leftRate"),
-                rightRate = table.getEntry("rightRate");
+                rightRate = table.getEntry("rightRate"),
+                motors = table.getEntry("motors");
 
         leftMotor.setDouble(0.0);
         rightMotor.setDouble(0.0);
@@ -30,10 +52,11 @@ public class Main {
             for (String s : ports) System.out.println(s);
         }
 
+
         // Make roomba ready for communication & control (safe mode)
         r.startup();
         r.sleep(500);
-        r.digitLedsAscii('G','N','U','C');
+        r.digitLedsAscii('R','U','S','T');
 
         r.song(0, new RoombaSongNote[]{
                 new RoombaSongNote(RoombaNote.E2, RoombaNoteDuration.EightNote),
@@ -66,7 +89,7 @@ public class Main {
             leftRate.setDouble(leftSpeed.calculate(r.encoderCountsLeft()));
             rightRate.setDouble(rightSpeed.calculate(r.encoderCountsRight()));
 
-            /*
+
             r.motors(
                     motors.getBooleanArray(new boolean[5])[0],
                     motors.getBooleanArray(new boolean[5])[1],
@@ -74,7 +97,7 @@ public class Main {
                     motors.getBooleanArray(new boolean[5])[3],
                     motors.getBooleanArray(new boolean[5])[4]
             );
-            */
+
 
             /*
             if(roomba.bumpLeft()) System.out.println("Bumped left");
@@ -93,28 +116,27 @@ public class Main {
 
 // Close serial connection
         r.disconnect();
-
     }
 
     private static int convert(double value) {
-        return Math.max(-100, Math.min((int)(value*100), 100));
+        return Math.max(-100, Math.min((int) (value * 100), 100));
     }
 }
 
-class Derivative{
+class Derivative {
     private double prevValue;
 
-    Derivative(double startingValue){
+    Derivative(double startingValue) {
         prevValue = startingValue;
     }
 
-    double calculate(double newValue, double dt){
+    double calculate(double newValue, double dt) {
         double pv = prevValue;
         prevValue = newValue;
-        return ((newValue - pv)/dt);
+        return ((newValue - pv) / dt);
     }
 
-    double calculate(double newValue){
+    double calculate(double newValue) {
         return calculate(newValue, 0.05);
     }
 }
